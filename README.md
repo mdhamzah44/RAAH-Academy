@@ -29,8 +29,8 @@ Mohd Hamzah
 
 1. Clone the repository:
    ```
-   git clone [https://github.com/mohdhamzah/raah-academy.git](https://github.com/mdhamzah44/RAAH-Academy.git)
-   cd raah-academy
+   git clone https://github.com/mdhamzah44/RAAH-Academy.git
+   cd RAAH-Academy
    ```
 
 2. Set up a virtual environment:
