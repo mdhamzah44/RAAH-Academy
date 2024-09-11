@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teacher Home</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .class-list {
+            list-style-type: none;
+            padding: 0;
+        }
+        .class-item {
+            background-color: #f4f4f4;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            padding: 15px;
+        }
+        .class-item h3 {
+            margin-top: 0;
+        }
+        .class-item p {
+            margin: 5px 0;
+        }
+        .start-class-btn {
+            background-color: #4CAF50;
+            border: none;
+            border-radius: 3px;
+            color: white;
+            cursor: pointer;
+            padding: 8px 16px;
+            text-decoration: none;
+        }
+        .start-class-btn:hover {
+            background-color: #45a049;
+        }
+        .create-class-btn {
+            background-color: #008CBA;
+            border: none;
+            border-radius: 3px;
+            color: white;
+            cursor: pointer;
+            padding: 8px 16px;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 20px;
+        }
+        .create-class-btn:hover {
+            background-color: #007B9A;
+        }
+        .no-classes-message {
+            background-color: #f4f4f4;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            text-align: center;
+            font-style: italic;
+            color: #666;
+        }
+        .create-class-form {
+            background-color: #f4f4f4;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .create-class-form input[type="text"],
+        .create-class-form input[type="date"],
+        .create-class-form input[type="time"] {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0 15px;
+            display: inline-block;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .create-class-form input[type="submit"] {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .create-class-form input[type="submit"]:hover {
+            background-color: #45a049;
+        }
+        .enrolled-count {
+            background-color: #007bff;
+            color: white;
+            border-radius: 50%;
+            padding: 5px 10px;
+            font-size: 0.9em;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Welcome, {{ username }}</h1>
+    <h2>Your Upcoming Classes</h2>
+    {% set upcoming_classes = classes|selectattr('status', 'ne', 'ended')|list %}
+    {% if upcoming_classes %}
+        <ul class="class-list">
+            {% for class in upcoming_classes %}
+                <div class="class-item">
+                    <h3>
+                        {{ class.subject }}
+                        <span class="enrolled-count" title="Enrolled Students">{{ class.enrolled_count }}</span>
+                    </h3>
+                    <p>Date: {{ class.date }}</p>
+                    <p>Time: {{ class.time }}</p>
+                    <a href="{{ url_for('index', class_id=class.id) }}" class="start-class-btn">Start Class</a>
+                </div>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <div class="no-classes-message">
+            <p>You have no upcoming classes scheduled.</p>
+        </div>
+    {% endif %}
+    
+    <div class="create-class-form">
+        <h3>Create New Class</h3>
+        <form action="{{ url_for('create_class') }}" method="POST">
+            <label for="subject">Subject:</label>
+            <input type="text" id="subject" name="subject" required>
+            
+            <label for="date">Date:</label>
+            <input type="date" id="date" name="date" required>
+            
+            <label for="time">Time:</label>
+            <input type="time" id="time" name="time" required>
+            
+            <input type="submit" value="Create Class">
+        </form>
+    </div>
+</body>
+</html>

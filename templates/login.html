@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login / Register</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        .container {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 5px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 400px;
+        }
+        h2 {
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        form {
+            display: flex;
+            flex-direction: column;
+        }
+        input, select {
+            margin-bottom: 1rem;
+            padding: 0.5rem;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            padding: 0.5rem;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        .toggle {
+            text-align: center;
+            margin-top: 1rem;
+        }
+        .error {
+            color: red;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2 id="formTitle">Login</h2>
+        {% if error %}
+        <p class="error">{{ error }}</p>
+        {% endif %}
+        <form id="authForm" method="POST">
+            <input type="text" name="username" placeholder="Username" required>
+            <input type="email" name="email" placeholder="Email">
+            <input type="password" name="password" placeholder="Password" required>
+            <select name="role">
+                <option value="teacher">Teacher</option>
+                <option value="student">Student</option>
+            </select>
+            <button type="submit">Submit</button>
+        </form>
+        <div class="toggle">
+            <a href="#" id="toggleAuth">Switch to Register</a>
+        </div>
+    </div>
+    <script>
+        const form = document.getElementById('authForm');
+        const formTitle = document.getElementById('formTitle');
+        const toggleAuth = document.getElementById('toggleAuth');
+        const emailInput = document.querySelector('input[name="email"]');
+        const roleSelect = document.querySelector('select[name="role"]');
+
+        let isLogin = true;
+
+        function updateFormState() {
+            if (isLogin) {
+                formTitle.textContent = 'Login';
+                toggleAuth.textContent = 'Switch to Register';
+                form.action = '/login';
+                emailInput.style.display = 'none';
+                roleSelect.style.display = 'none';
+                emailInput.removeAttribute('required');
+                roleSelect.removeAttribute('required');
+            } else {
+                formTitle.textContent = 'Register';
+                toggleAuth.textContent = 'Switch to Login';
+                form.action = '/register';
+                emailInput.style.display = 'block';
+                roleSelect.style.display = 'block';
+                emailInput.setAttribute('required', '');
+                roleSelect.setAttribute('required', '');
+            }
+        }
+
+        toggleAuth.addEventListener('click', (e) => {
+            e.preventDefault();
+            isLogin = !isLogin;
+            updateFormState();
+        });
+
+        form.addEventListener('submit', (e) => {
+            if (isLogin) {
+                emailInput.disabled = true;
+                roleSelect.disabled = true;
+            }
+        });
+
+        // Initial setup
+        updateFormState();
+    </script>
+</body>
+</html>

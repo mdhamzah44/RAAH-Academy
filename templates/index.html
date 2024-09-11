@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <title>Teaching Canvas App</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            display: flex;
+            height: 100vh;
+        }
+
+        .main-container {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+            min-width: 0;
+        }
+
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+
+        canvas {
+            border: 1px solid #ccc;
+            flex: 1;
+            background-color: #fff;
+        }
+
+        .toolbar {
+            display: flex;
+            justify-content: center;
+            padding: 10px;
+            background-color: #f0f0f0;
+            flex-wrap: wrap;
+        }
+
+        button, input[type="color"], select, input[type="file"] {
+            margin: 5px;
+            padding: 5px 10px;
+        }
+
+        button.active {
+            background-color: #007bff;
+            color: white;
+        }
+
+        .slide-controls {
+            display: flex;
+            justify-content: center;
+            padding: 10px;
+            background-color: #e0e0e0;
+        }
+
+        #slideCounter {
+            margin: 0 10px;
+        }
+
+        .comment-section {
+            width: 300px;
+            background-color: #f9f9f9;
+            border-left: 1px solid #ccc;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .comments {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 10px;
+            display: flex;
+            flex-direction: column-reverse;
+        }
+
+        .comment {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            max-width: 100%;
+        }
+
+        .comment strong {
+            word-break: break-all;
+        }
+
+        /* Scrollbar styles */
+        .comments::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .comments::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .comments::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        .comments::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        .comment-form {
+            padding: 10px;
+            border-top: 1px solid #ccc;
+            background-color: #f9f9f9;
+            display: flex;
+            align-items: center;
+        }
+
+        .comment-form textarea {
+            flex-grow: 1;
+            margin-right: 10px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: none;
+            height: 34px;
+            overflow-y: auto;
+        }
+
+        .comment-form button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 34px;
+            height: 34px;
+            font-size: 18px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .comment-form button:hover {
+            background-color: #0056b3;
+        }
+        #educatorVideo {
+            width: 100%;     /* Make the video responsive to the container */
+            max-width: 100%;  /* Ensure it doesn't exceed the container's width */
+            height: auto;     /* Maintain the aspect ratio */
+            display: block;   /* Ensure there are no extra gaps or inline behavior */
+        }
+
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+
+            .comment-section {
+                width: 100%;
+                height: 300px;
+                border-left: none;
+                border-top: 1px solid #ccc;
+            }
+        }
+    </style>
+    <style>
+        .pinned-comment-container {
+        background-color: #ffffd0;
+        border-bottom: 1px solid #ffd700;
+        padding: 10px;
+        margin-bottom: 10px;
+    }
+
+    .pinned {
+        background-color: transparent;
+        border: none;
+        position: relative;
+    }
+
+    .unpin-button {
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        background-color: #f0f0f0;
+        border: none;
+        border-radius: 3px;
+        padding: 2px 5px;
+        cursor: pointer;
+    }
+
+    /* Adjust the comment section to accommodate the pinned comment */
+    .comment-section {
+        display: flex;
+        flex-direction: column;
+    }
+
+    .comments {
+        flex-grow: 1;
+        overflow-y: auto;
+    }
+        .results-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: white;
+            padding: 20px;
+            border: 1px solid black;
+            border-radius: 10px;
+            z-index: 1000;
+            max-width: 80%;
+            max-height: 80%;
+            overflow-y: auto;
+        }
+        .correct-answers {
+            color: green;
+        }
+        .incorrect-answers {
+            color: red;
+        }
+    </style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.js"></script>
+</head>
+<body>
+    <script>
+        const currentClassId = {{ class_id|tojson|safe }};
+    </script>
+
+    <div class="main-container">
+        <div class="canvas-container">
+            <canvas id="mainCanvas"></canvas>
+            <div class="slide-controls">
+                <button id="prevSlide">Previous</button>
+                <span id="slideCounter">Slide 1 of 1</span>
+                <button id="nextSlide">Next</button>
+                <button id="newSlide">New Slide</button>
+                <button id="allSlides">All Slides</button>
+                <button id="pollButton">Create Poll</button>
+                <input type="file" id="imageUpload" accept="image/*,.pdf">
+                <button id="endClassBtn">End Class</button>
+            </div>
+            <div class="toolbar">
+                <button id="penTool" class="active">Pen</button>
+                <button id="highlighterTool">Highlighter</button>
+                <button id="eraserTool">Eraser</button>
+                <select id="shapeTool">
+                    <option value="none">Select Shape</option>
+                    <option value="line">Line</option>
+                    <option value="rectangle">Rectangle</option>
+                    <option value="circle">Circle</option>
+                </select>
+                <select id="sizeSelector">
+                    <option value="5">Size 1</option>
+                    <option value="8">Size 2</option>
+                    <option value="12">Size 3</option>
+                    <option value="14">Size 4</option>
+                    <option value="16">Size 5</option>
+                </select>
+                <input type="color" id="colorPicker" value="#8B0000">
+                <button id="clearCanvas">Clear</button>
+            </div>
+        </div>
+    </div>
+    
+    <div class="comment-section">
+        
+        <div class="educator-video-section" style="border: 1px solid black; margin-top: 1px;">
+            <video id="educatorVideo" autoplay playsinline ></video>
+        </div>
+        <canvas id="videoCanvas" style="display:none;"></canvas>
+        <div id="pinnedCommentContainer" class="pinned-comment-container"></div>
+        <div id="comments" class="comments"></div>
+        <div class="comment-form">
+            <textarea id="commentInput" placeholder="Type your comment here" rows="1"></textarea>
+            <button id="sendComment">&gt;</button>
+        </div>
+    </div>
+
+    
+    <script>
+const socket = io();
+    const video = document.getElementById('educatorVideo');
+    const canvas = document.getElementById('videoCanvas');
+    const ctx = canvas.getContext('2d');
+    const classId = {{ class_id }};
+    let peerConnection;
+
+    socket.emit('join', {class_id: classId});
+
+    async function startEducatorStream() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: true, 
+                audio: true
+            });
+            video.srcObject = stream;
+            video.onloadedmetadata = () => {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                sendVideoFrame();
+            };
+
+            // Audio and video streaming
+            peerConnection = new RTCPeerConnection({
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' }
+                ]
+            });
+            
+            stream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, stream);
+            });
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    console.log('Sending ICE candidate');
+                    socket.emit('ice_candidate', { candidate: event.candidate, class_id: classId });
+                }
+            };
+
+            peerConnection.onnegotiationneeded = async () => {
+                try {
+                    const offer = await peerConnection.createOffer();
+                    await peerConnection.setLocalDescription(offer);
+                    console.log('Sending offer');
+                    socket.emit('offer', { offer: offer, class_id: classId });
+                } catch (err) {
+                    console.error('Error creating offer:', err);
+                }
+            };
+
+        } catch (err) {
+            console.error("Error accessing the camera and microphone:", err);
+        }
+    }
+
+    // ... rest of the existing code ...
+
+    socket.on('request_offer', async () => {
+        console.log('Received request for offer');
+        try {
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            console.log('Sending offer');
+            socket.emit('offer', { offer: offer, class_id: classId });
+        } catch (err) {
+            console.error('Error creating offer:', err);
+        }
+    });
+
+    function sendVideoFrame() {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        socket.emit('video_frame', {
+            class_id: classId,
+            frame: canvas.toDataURL('image/jpeg', 0.5)
+        });
+        requestAnimationFrame(sendVideoFrame);
+    }
+
+    startEducatorStream();
+
+    socket.on('answer', async (data) => {
+        console.log('Received answer');
+        await peerConnection.setRemoteDescription(data.answer);
+    });
+
+    socket.on('ice_candidate', async (data) => {
+        console.log('Received ICE candidate');
+        try {
+            await peerConnection.addIceCandidate(data.candidate);
+        } catch (e) {
+            console.error('Error adding received ICE candidate', e);
+        }
+    });
+
+    socket.on('connect', () => {
+        console.log('Connected to server');
+        socket.emit('join', {class_id: currentClassId});
+    });
+
+    const pollButton = document.getElementById('pollButton');
+   
+    pollButton.addEventListener('click', createPollPopup);
+
+        function createPollPopup() {
+            const popup = document.createElement('div');
+            popup.style.position = 'fixed';
+            popup.style.top = '50%';
+            popup.style.left = '50%';
+            popup.style.transform = 'translate(-50%, -50%)';
+            popup.style.backgroundColor = 'white';
+            popup.style.padding = '20px';
+            popup.style.border = '1px solid black';
+            popup.style.borderRadius = '10px';
+            popup.style.zIndex = '1000';
+
+            const pollTypes = [
+                { name: 'True-False Poll', options: ['True', 'False'] },
+                { name: 'ABCD Poll', options: ['A', 'B', 'C', 'D'] },
+                { name: 'ABCDE Poll', options: ['A', 'B', 'C', 'D', 'E'] }
+            ];
+
+            const timers = ['20', '40', '60'];
+
+            pollTypes.forEach(type => {
+                const button = document.createElement('button');
+                button.textContent = type.name;
+                button.addEventListener('click', () => createPollForm(type.options));
+                popup.appendChild(button);
+            });
+
+            document.body.appendChild(popup);
+
+            function createPollForm(options) {
+                popup.innerHTML = '';
+
+                const question = document.createElement('input');
+                question.type = 'text';
+                question.placeholder = 'Enter your question';
+                popup.appendChild(question);
+
+                options.forEach(option => {
+                    const label = document.createElement('label');
+                    const radio = document.createElement('input');
+                    radio.type = 'radio';
+                    radio.name = 'correct';
+                    radio.value = option;
+                    label.appendChild(radio);
+                    label.appendChild(document.createTextNode(option));
+                    popup.appendChild(label);
+                });
+
+                const timerSelect = document.createElement('select');
+                timers.forEach(time => {
+                    const option = document.createElement('option');
+                    option.value = time;
+                    option.textContent = time + 's';
+                    timerSelect.appendChild(option);
+                });
+                popup.appendChild(timerSelect);
+
+                const submitButton = document.createElement('button');
+                submitButton.textContent = 'Start Poll';
+                submitButton.addEventListener('click', () => {
+                    const correctAnswer = document.querySelector('input[name="correct"]:checked').value;
+                    const duration = parseInt(timerSelect.value);
+                    startPoll(question.value, options, correctAnswer, duration);
+                    document.body.removeChild(popup);
+                });
+                popup.appendChild(submitButton);
+            }
+        }
+
+        function startPoll(question, options, correctAnswer, duration) {
+        const pollId = Date.now();  // Generate a unique poll ID
+        console.log('Starting poll:', {question, options, correctAnswer, duration, pollId});
+        socket.emit('start_poll', {
+            class_id: currentClassId,
+            pollId: pollId,
+            question: question,
+            options: options,
+            correctAnswer: correctAnswer,
+            duration: duration
+        });
+
+        // Set a timeout to show results after the poll ends
+        setTimeout(() => {
+            showPollResults(pollId);
+        }, duration * 1000);
+    }
+    function showPollResults(pollId) {
+        // Request poll results from the server
+        socket.emit('get_poll_results', { pollId: pollId, classId: currentClassId });
+    }
+
+    socket.on('poll_results', (data) => {
+        const { correctAnswers, incorrectAnswers } = data;
+
+        const resultsPopup = document.createElement('div');
+        resultsPopup.style.position = 'fixed';
+        resultsPopup.style.top = '50%';
+        resultsPopup.style.left = '50%';
+        resultsPopup.style.transform = 'translate(-50%, -50%)';
+        resultsPopup.style.backgroundColor = 'white';
+        resultsPopup.style.padding = '20px';
+        resultsPopup.style.border = '1px solid black';
+        resultsPopup.style.borderRadius = '10px';
+        resultsPopup.style.zIndex = '1000';
+        resultsPopup.style.maxWidth = '80%';
+        resultsPopup.style.maxHeight = '80%';
+        resultsPopup.style.overflow = 'auto';
+
+        const title = document.createElement('h2');
+        title.textContent = 'Poll Results';
+        resultsPopup.appendChild(title);
+
+        const correctSection = document.createElement('div');
+        correctSection.innerHTML = '<h3 style="color: green;">Correct Answers:</h3>';
+        correctAnswers.forEach(student => {
+            const p = document.createElement('p');
+            p.textContent = student;
+            correctSection.appendChild(p);
+        });
+        resultsPopup.appendChild(correctSection);
+
+        const incorrectSection = document.createElement('div');
+        incorrectSection.innerHTML = '<h3 style="color: red;">Incorrect Answers:</h3>';
+        incorrectAnswers.forEach(student => {
+            const p = document.createElement('p');
+            p.textContent = student;
+            incorrectSection.appendChild(p);
+        });
+        resultsPopup.appendChild(incorrectSection);
+
+        const closeButton = document.createElement('button');
+        closeButton.textContent = 'Close';
+        closeButton.addEventListener('click', () => document.body.removeChild(resultsPopup));
+        resultsPopup.appendChild(closeButton);
+
+        document.body.appendChild(resultsPopup);
+    });
+   
+    </script>
+    <script>
+        const canvas2 = document.getElementById('mainCanvas');
+        const ctx2 = canvas2.getContext('2d');
+        const colorPicker = document.getElementById('colorPicker');
+        const penTool = document.getElementById('penTool');
+        const highlighterTool = document.getElementById('highlighterTool');
+        const eraserTool = document.getElementById('eraserTool');
+        const shapeTool = document.getElementById('shapeTool');
+        const sizeSelector = document.getElementById('sizeSelector');
+        const clearCanvas = document.getElementById('clearCanvas');
+        const prevSlide = document.getElementById('prevSlide');
+        const nextSlide = document.getElementById('nextSlide');
+        const newSlide = document.getElementById('newSlide');
+        const slideCounter = document.getElementById('slideCounter');
+        const imageUpload = document.getElementById('imageUpload');
+        const endClassBtn = document.getElementById('endClassBtn');
+        
+        const educatorVideo = document.getElementById('educatorVideo');
+        const allSlidesBtn = document.getElementById('allSlides');
+
+
+        let undoStack = [];
+        const MAX_UNDO_STEPS = 20;
+    
+        let isDrawing = false;
+        let currentTool = 'pen';
+        let startX, startY, lastX, lastY;
+        let slides = [{ type: 'canvas', data: null }];
+        
+        let currentSlideIndex = 0;
+        const ASPECT_RATIO = 13 / 6;
+
+
+        
+        function showAllSlides() {
+    const popup = document.createElement('div');
+    popup.style.position = 'fixed';
+    popup.style.top = '50%';
+    popup.style.left = '50%';
+    popup.style.transform = 'translate(-50%, -50%)';
+    popup.style.backgroundColor = 'white';
+    popup.style.padding = '20px';
+    popup.style.border = '1px solid black';
+    popup.style.borderRadius = '10px';
+    popup.style.zIndex = '1000';
+    popup.style.maxWidth = '80%';
+    popup.style.maxHeight = '80%';
+    popup.style.overflow = 'auto';
+
+    const closeBtn = document.createElement('button');
+    closeBtn.textContent = 'Close';
+    closeBtn.style.marginRight = '10px';
+    closeBtn.addEventListener('click', () => document.body.removeChild(popup));
+
+    const selectBtn = document.createElement('button');
+    selectBtn.textContent = 'Select Slides';
+    selectBtn.addEventListener('click', toggleSelectionMode);
+
+    const actionContainer = document.createElement('div');
+    actionContainer.style.display = 'none';
+    actionContainer.style.marginTop = '10px';
+
+    const moveBeforeBtn = document.createElement('button');
+    moveBeforeBtn.textContent = 'Move Before';
+    moveBeforeBtn.addEventListener('click', () => handleMove('before'));
+
+    const moveAfterBtn = document.createElement('button');
+    moveAfterBtn.textContent = 'Move After';
+    moveAfterBtn.addEventListener('click', () => handleMove('after'));
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.textContent = 'Delete Slides';
+    deleteBtn.addEventListener('click', handleDelete);
+
+    actionContainer.appendChild(moveBeforeBtn);
+    actionContainer.appendChild(moveAfterBtn);
+    actionContainer.appendChild(deleteBtn);
+
+    const buttonContainer = document.createElement('div');
+    buttonContainer.appendChild(closeBtn);
+    buttonContainer.appendChild(selectBtn);
+    buttonContainer.appendChild(actionContainer);
+    popup.appendChild(buttonContainer);
+
+    const slideContainer = document.createElement('div');
+    slideContainer.style.display = 'flex';
+    slideContainer.style.flexWrap = 'wrap';
+    slideContainer.style.justifyContent = 'center';
+    slideContainer.style.marginTop = '10px';
+
+    let selectedSlides = new Set();
+    let isSelectionMode = false;
+
+    slides.forEach((slide, index) => {
+        const slideWrapper = document.createElement('div');
+        slideWrapper.style.position = 'relative';
+        slideWrapper.style.margin = '10px';
+        slideWrapper.style.textAlign = 'center';
+
+        const slideCanvas = document.createElement('canvas');
+        slideCanvas.width = 200;
+        slideCanvas.height = 200 * (6/13);
+        slideCanvas.style.border = '1px solid #ccc';
+
+        const ctx = slideCanvas.getContext('2d');
+        if (slide.type === 'canvas' && slide.data) {
+            const img = new Image();
+            img.onload = () => {
+                ctx.drawImage(img, 0, 0, slideCanvas.width, slideCanvas.height);
+            };
+            img.src = slide.data;
+        } else if (slide.type === 'image') {
+            const img = new Image();
+            img.onload = () => {
+                const scale = Math.min(slideCanvas.width / img.width, slideCanvas.height / img.height);
+                const x = (slideCanvas.width / 2) - (img.width / 2) * scale;
+                const y = (slideCanvas.height / 2) - (img.height / 2) * scale;
+                ctx.drawImage(img, x, y, img.width * scale, img.height * scale);
+            };
+            img.src = slide.data;
+        }
+
+        const slideNumber = document.createElement('div');
+        slideNumber.textContent = `Slide ${index + 1}`;
+
+        slideWrapper.appendChild(slideCanvas);
+        slideWrapper.appendChild(slideNumber);
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.style.position = 'absolute';
+        checkbox.style.top = '5px';
+        checkbox.style.left = '5px';
+        checkbox.style.display = 'none';
+        checkbox.addEventListener('change', () => {
+            if (checkbox.checked) {
+                selectedSlides.add(index);
+            } else {
+                selectedSlides.delete(index);
+            }
+        });
+
+        slideWrapper.appendChild(checkbox);
+
+        slideWrapper.addEventListener('click', () => {
+            if (isSelectionMode) {
+                checkbox.checked = !checkbox.checked;
+                checkbox.dispatchEvent(new Event('change'));
+            } else {
+                currentSlideIndex = index;
+                redrawCurrentSlide();
+                updateSlideCounter();
+                document.body.removeChild(popup);
+            }
+        });
+
+        slideContainer.appendChild(slideWrapper);
+    });
+
+    popup.appendChild(slideContainer);
+    document.body.appendChild(popup);
+
+    function toggleSelectionMode() {
+        isSelectionMode = !isSelectionMode;
+        selectBtn.textContent = isSelectionMode ? 'Cancel Selection' : 'Select Slides';
+        actionContainer.style.display = isSelectionMode ? 'block' : 'none';
+        slideContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.style.display = isSelectionMode ? 'block' : 'none';
+        });
+        if (!isSelectionMode) {
+            selectedSlides.clear();
+            slideContainer.querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+        }
+    }
+
+    function handleMove(direction) {
+        if (selectedSlides.size === 0) {
+            alert('Please select slides to move.');
+            return;
+        }
+        const targetIndex = parseInt(prompt(`Enter the slide number to move ${direction}:`)) - 1;
+        if (isNaN(targetIndex) || targetIndex < 0 || targetIndex >= slides.length) {
+            alert('Invalid slide number.');
+            return;
+        }
+        const selectedIndices = Array.from(selectedSlides).sort((a, b) => a - b);
+        const selectedSlidesCopy = selectedIndices.map(index => slides[index]);
+        selectedIndices.reverse().forEach(index => slides.splice(index, 1));
+        const insertIndex = direction === 'before' ? targetIndex : targetIndex + 1;
+        slides.splice(insertIndex, 0, ...selectedSlidesCopy);
+        document.body.removeChild(popup);
+        showAllSlides();
+        sendCanvasData();
+    }
+
+    function handleDelete() {
+        if (selectedSlides.size === 0) {
+            alert('Please select slides to delete.');
+            return;
+        }
+        if (confirm(`Are you sure you want to delete ${selectedSlides.size} slide(s)?`)) {
+            const selectedIndices = Array.from(selectedSlides).sort((a, b) => b - a);
+            selectedIndices.forEach(index => slides.splice(index, 1));
+            if (currentSlideIndex >= slides.length) {
+                currentSlideIndex = slides.length - 1;
+            }
+            document.body.removeChild(popup);
+            showAllSlides();
+            redrawCurrentSlide();
+            updateSlideCounter();
+            sendCanvasData();
+        }
+    }
+}
+
+// Add event listener for the All Slides button
+allSlidesBtn.addEventListener('click', showAllSlides);
+    
+        async function startEducatorVideo() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                educatorVideo.srcObject = stream;
+            } catch (err) {
+                console.error("Error accessing the camera and microphone:", err);
+            }
+        }
+    
+        function resizeCanvas() {
+            const container = canvas2.parentElement;
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight;
+            
+            let canvasWidth, canvasHeight;
+            
+            if (containerWidth / containerHeight > ASPECT_RATIO) {
+                canvasHeight = containerHeight;
+                canvasWidth = canvasHeight * ASPECT_RATIO;
+            } else {
+                canvasWidth = containerWidth;
+                canvasHeight = canvasWidth / ASPECT_RATIO;
+            }
+            
+            canvas2.style.width = `${canvasWidth}px`;
+            canvas2.style.height = `${canvasHeight}px`;
+            
+            const scale = window.devicePixelRatio;
+            canvas2.width = Math.floor(canvasWidth * scale);
+            canvas2.height = Math.floor(canvasHeight * scale);
+            ctx2.scale(scale, scale);
+            
+            redrawCurrentSlide();
+        }
+    
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+    
+        function startDrawing(e) {
+            isDrawing = true;
+            [startX, startY] = getCoordinates(e);
+            [lastX, lastY] = [startX, startY];
+        }
+    
+        function stopDrawing() {
+    if (isDrawing) {
+        if (currentTool === 'shape') {
+            const [x, y] = [lastX, lastY];
+            drawShape(x, y);
+        }
+        isDrawing = false;
+        saveCurrentSlide(); // Save the state after each drawing action
+    }
+}
+        function getCoordinates(e) {
+            const rect = canvas2.getBoundingClientRect();
+            const clientX = e.clientX || e.touches[0].clientX;
+            const clientY = e.clientY || e.touches[0].clientY;
+            return [
+                clientX - rect.left,
+                clientY - rect.top
+            ];
+        }
+    
+        function draw(e) {
+            if (!isDrawing) return;
+    
+            const [x, y] = getCoordinates(e);
+    
+            // Prevent drawing when using the shape tool
+            if (currentTool === 'shape') {
+                [lastX, lastY] = [x, y];
+                return;
+            }
+    
+            ctx2.lineWidth = getToolSize();
+            ctx2.lineCap = 'round';
+            ctx2.strokeStyle = currentTool === 'eraser' ? '#ffffff' : colorPicker.value;
+    
+            if (currentTool === 'highlighter') {
+                ctx2.globalAlpha = 0.15;
+                ctx2.lineWidth = 30;
+            } else {
+                ctx2.globalAlpha = 1;
+                ctx2.lineWidth = getToolSize();
+            }
+    
+            ctx2.beginPath();
+            ctx2.moveTo(lastX, lastY);
+            ctx2.lineTo(x, y);
+            ctx2.stroke();
+    
+            [lastX, lastY] = [x, y];
+        }
+    
+        function getToolSize() {
+            return parseInt(sizeSelector.value);
+        }
+    
+        function drawShape(x, y) {
+            ctx2.beginPath();
+            ctx2.strokeStyle = colorPicker.value;
+            ctx2.lineWidth = getToolSize();
+    
+            switch (shapeTool.value) {
+                case 'line':
+                    ctx2.moveTo(startX, startY);
+                    ctx2.lineTo(x, y);
+                    break;
+                case 'rectangle':
+                    ctx2.rect(startX, startY, x - startX, y - startY);
+                    break;
+                case 'circle':
+                    const radius = Math.sqrt(Math.pow(x - startX, 2) + Math.pow(y - startY, 2));
+                    ctx2.arc(startX, startY, radius, 0, 2 * Math.PI);
+                    break;
+            }
+            ctx2.stroke();
+        }
+    
+        function saveCurrentSlide() {
+    const currentState = canvas2.toDataURL();
+    undoStack.push(currentState);
+    if (undoStack.length > MAX_UNDO_STEPS) {
+        undoStack.shift(); // Remove the oldest state if we exceed the maximum
+    }
+    slides[currentSlideIndex].data = currentState;
+    sendCanvasData();
+}
+
+function undo() {
+    if (undoStack.length > 1) { // We need at least 2 states to perform an undo
+        const currentState = undoStack[undoStack.length - 1];
+        const previousState = undoStack[undoStack.length - 2];
+        
+        // Check if the current state is different from the previous state
+        if (currentState !== previousState) {
+            undoStack.pop(); // Remove the current state
+            const img = new Image();
+            img.onload = () => {
+                ctx2.clearRect(0, 0, canvas2.width, canvas2.height);
+                ctx2.drawImage(img, 0, 0);
+                slides[currentSlideIndex].data = previousState;
+                sendCanvasData();
+            };
+            img.src = previousState;
+        }
+        // If the states are the same, do nothing (nothing has been drawn)
+    }
+}
+
+// Add this event listener for the Ctrl+Z shortcut
+document.addEventListener('keydown', function(e) {
+    if (e.ctrlKey && e.key === 'z') {
+        e.preventDefault(); // Prevent the browser's default undo action
+        undo();
+    }
+});
+    
+        function redrawCurrentSlide() {
+            const currentSlide = slides[currentSlideIndex];
+            if (currentSlide.type === 'canvas' && currentSlide.data) {
+                const img = new Image();
+                img.onload = () => {
+                    ctx2.clearRect(0, 0, canvas2.width, canvas2.height);
+                    ctx2.drawImage(img, 0, 0);
+                };
+                img.src = currentSlide.data;
+            } else if (currentSlide.type === 'image') {
+                const img = new Image();
+                img.onload = () => {
+                    ctx2.clearRect(0, 0, canvas2.width, canvas2.height);
+                    const scale = Math.min(canvas2.width / img.width, canvas2.height / img.height);
+                    const x = (canvas2.width / 2) - (img.width / 2) * scale;
+                    const y = (canvas2.height / 2) - (img.height / 2) * scale;
+                    ctx2.drawImage(img, x, y, img.width * scale, img.height * scale);
+                };
+                img.src = currentSlide.data;
+            } else {
+                ctx2.clearRect(0, 0, canvas2.width, canvas2.height);
+            }
+            updateSlideCounter();
+        }
+    
+        function updateSlideCounter() {
+    slideCounter.textContent = `Slide ${currentSlideIndex + 1} of ${slides.length}`;
+}
+        function sendCanvasData() {
+            const data = {
+                class_id: currentClassId,
+                slides: slides.map(slide => ({
+                    type: slide.type,
+                    data: slide.data
+                })),
+                currentSlideIndex: currentSlideIndex
+            };
+    
+            Object.keys(data).forEach(key => data[key] === undefined && delete data[key]);
+    
+            fetch('/update', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            })
+            .then(response => response.json())
+            .then(result => {
+                console.log('Success:', result);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+    
+        canvas2.addEventListener('mousedown', startDrawing);
+        canvas2.addEventListener('mousemove', draw);
+        canvas2.addEventListener('mouseup', stopDrawing);
+        canvas2.addEventListener('mouseout', stopDrawing);
+    
+        canvas2.addEventListener('touchstart', handleTouchStart);
+        canvas2.addEventListener('touchmove', handleTouchMove);
+        canvas2.addEventListener('touchend', handleTouchEnd);
+        canvas2.addEventListener('touchcancel', handleTouchEnd);
+    
+        function handleTouchStart(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            startDrawing(touch);
+        }
+    
+        function handleTouchMove(e) {
+            e.preventDefault();
+            const touch = e.touches[0];
+            draw(touch);
+        }
+    
+        function handleTouchEnd(e) {
+            e.preventDefault();
+            stopDrawing();
+        }
+    
+        penTool.addEventListener('click', () => {
+            currentTool = 'pen';
+            updateActiveButton(penTool);
+        });
+    
+        highlighterTool.addEventListener('click', () => {
+            currentTool = 'highlighter';
+            updateActiveButton(highlighterTool);
+        });
+    
+        eraserTool.addEventListener('click', () => {
+            currentTool = 'eraser';
+            updateActiveButton(eraserTool);
+        });
+    
+        shapeTool.addEventListener('change', () => {
+            if (shapeTool.value !== 'none') {
+                currentTool = 'shape';
+                updateActiveButton(null);
+            }
+        });
+    
+        clearCanvas.addEventListener('click', () => {
+    ctx2.clearRect(0, 0, canvas2.width, canvas2.height);
+    saveCurrentSlide();
+});
+    
+        prevSlide.addEventListener('click', () => {
+            if (currentSlideIndex > 0) {
+                currentSlideIndex--;
+                redrawCurrentSlide();
+                sendCanvasData();
+            }
+        });
+    
+        nextSlide.addEventListener('click', () => {
+            if (currentSlideIndex < slides.length - 1) {
+                currentSlideIndex++;
+                redrawCurrentSlide();
+                sendCanvasData();
+            }
+        });
+    
+        newSlide.addEventListener('click', () => {
+    slides.push({ type: 'canvas', data: null });
+    currentSlideIndex = slides.length - 1;
+    redrawCurrentSlide();
+    sendCanvasData();
+    // Reset the undo stack for the new slide
+    undoStack = [canvas2.toDataURL()];
+});
+    
+imageUpload.addEventListener('change', handleFileUpload);
+
+function handleFileUpload(event) {
+    const file = event.target.files[0];
+    if (file) {
+        if (file.type === 'application/pdf') {
+            handlePdfUpload(file);
+        } else if (file.type.startsWith('image/')) {
+            handleImageUpload(file);
+        } else {
+            alert('Please upload a PDF or image file.');
+        }
+    }
+}
+
+function handlePdfUpload(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const pdfData = new Uint8Array(e.target.result);
+        pdfjsLib.getDocument({data: pdfData}).promise.then(function(pdf) {
+            const numPages = pdf.numPages;
+            console.log('PDF loaded, pages:', numPages);
+
+            // Create an array to store our promises
+            let renderPromises = [];
+
+            for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                renderPromises.push(renderPage(pdf, pageNum));
+            }
+
+            // Wait for all pages to be rendered
+            Promise.all(renderPromises).then(() => {
+                console.log('All pages rendered');
+                redrawCurrentSlide();
+                updateSlideCounter();
+                sendCanvasData();
+            });
+        });
+    };
+    reader.readAsArrayBuffer(file);
+}
+
+function renderPage(pdf, pageNum) {
+    return new Promise((resolve) => {
+        pdf.getPage(pageNum).then(function(page) {
+            const scale = 1.5;
+            const viewport = page.getViewport({scale: scale});
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.height = viewport.height;
+            canvas.width = viewport.width;
+            const renderContext = {
+                canvasContext: context,
+                viewport: viewport
+            };
+            page.render(renderContext).promise.then(function() {
+                addSlide('image', canvas.toDataURL());
+                resolve();
+            });
+        });
+    });
+}
+
+function handleImageUpload(file) {
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        addSlide('image', e.target.result);
+    };
+    reader.readAsDataURL(file);
+}
+
+function addSlide(type, data) {
+    slides.push({ type: type, data: data });
+    currentSlideIndex = slides.length - 1;
+    redrawCurrentSlide();
+    updateSlideCounter();
+    sendCanvasData();
+}
+    
+        function updateActiveButton(activeButton) {
+            [penTool, highlighterTool, eraserTool].forEach(btn => btn.classList.remove('active'));
+            if (activeButton) {
+                activeButton.classList.add('active');
+            }
+            if (currentTool !== 'shape') {
+                shapeTool.value = 'none';
+            }
+        }
+    
+        const commentsContainer = document.getElementById('comments');
+        const commentInput = document.getElementById('commentInput');
+        const sendComment = document.getElementById('sendComment');
+    
+        function addComment(comment) {
+        const commentElement = document.createElement('div');
+        commentElement.className = 'comment';
+        commentElement.innerHTML = `
+            <strong>${comment.username}</strong><br>
+            ${formatCommentText(comment.comment)}<br>
+            <small>${comment.created_at}</small>
+            <button class="pin-button" data-comment-id="${comment.id}">Pin</button>
+        `;
+        commentsContainer.appendChild(commentElement);
+
+        // Add event listener for the pin button
+        const pinButton = commentElement.querySelector('.pin-button');
+        pinButton.addEventListener('click', () => pinComment(comment.id));
+    }
+    function formatCommentText(text) {
+        // Regular expression to match URLs
+        const urlRegex = /(https?:\/\/[^\s]+)/g;
+        return text.replace(urlRegex, (url) => `<a href="${url}" target="_blank">${url}</a>`);
+    }
+
+    function pinComment(commentId) {
+        fetch('/pin_comment', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ comment_id: commentId, class_id: currentClassId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                fetchComments(); // Refresh comments to show the pinned comment
+            } else {
+                console.error('Failed to pin comment');
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+    
+        function sendCommentIfNotEmpty() {
+            const comment = commentInput.value.trim();
+            if (comment) {
+                sendCommentToServer(comment);
+            }
+        }
+    
+        commentInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendCommentIfNotEmpty();
+            }
+        });
+    
+        sendComment.addEventListener('click', sendCommentIfNotEmpty);
+    
+        async function sendCommentToServer(comment) {
+            try {
+                const response = await fetch('/add_comment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ comment: comment, class_id: currentClassId })
+                });
+                if (response.ok) {
+                    commentInput.value = '';
+                    await fetchComments();
+                } else {
+                    console.error('Failed to send comment');
+                }
+            } catch (error) {
+                console.error('Error sending comment:', error);
+            }
+        }
+    
+        async function fetchComments() {
+    try {
+        const response = await fetch(`/fetch_comments/${currentClassId}`);
+        if (response.ok) {
+            const data = await response.json();
+            const pinnedCommentContainer = document.getElementById('pinnedCommentContainer');
+            const commentsContainer = document.getElementById('comments');
+            
+            if (pinnedCommentContainer) {
+                pinnedCommentContainer.innerHTML = '';
+                if (data.pinnedComment) {
+                    addPinnedComment(data.pinnedComment);
+                }
+            } else {
+                console.warn('Pinned comment container not found');
+            }
+            
+            if (commentsContainer) {
+                commentsContainer.innerHTML = '';
+                data.comments.forEach(addComment);
+            } else {
+                console.warn('Comments container not found');
+            }
+        } else {
+            console.error('Failed to fetch comments');
+        }
+    } catch (error) {
+        console.error('Error fetching comments:', error);
+    }
+}
+    
+        setInterval(fetchComments, 2000);
+
+        function addPinnedComment(comment) {
+    const pinnedCommentContainer = document.getElementById('pinnedCommentContainer');
+    pinnedCommentContainer.innerHTML = '';
+    
+    const pinnedElement = document.createElement('div');
+    pinnedElement.className = 'comment pinned';
+    pinnedElement.innerHTML = `
+        <strong>📌 ${comment.username}</strong><br>
+        ${formatCommentText(comment.comment)}<br>
+        <small>${comment.created_at}</small>
+        <button class="unpin-button" data-comment-id="${comment.id}">Unpin</button>
+    `;
+    pinnedCommentContainer.appendChild(pinnedElement);
+
+    // Add event listener for the unpin button
+    const unpinButton = pinnedElement.querySelector('.unpin-button');
+    unpinButton.addEventListener('click', () => unpinComment(comment.id));
+}
+
+    function unpinComment(commentId) {
+        fetch('/unpin_comment', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ comment_id: commentId, class_id: currentClassId })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                fetchComments(); // Refresh comments to remove the pinned comment
+            } else {
+                console.error('Failed to unpin comment');
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    }
+    
+        document.addEventListener('DOMContentLoaded', function() {
+            fetch(`/get_canvas_data/${currentClassId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    initializeCanvas(data);
+                })
+                .catch(error => {
+                    console.error('Error loading canvas data:', error);
+                    initializeCanvas({slides: [], currentSlideIndex: 0});
+                });
+        });
+    
+        function initializeCanvas(data) {
+    slides = data.slides || [];
+    currentSlideIndex = data.currentSlideIndex || 0;
+    if (slides.length === 0) {
+        slides.push({ type: 'canvas', data: null });
+    }
+    redrawCurrentSlide();
+    fetchComments();
+    // Initialize the undo stack with the current state of the slide
+    undoStack = [slides[currentSlideIndex].data || canvas2.toDataURL()];
+}
+    
+        endClassBtn.addEventListener('click', function() {
+            if (confirm('Are you sure you want to end the class? This will export the slides to PDF and end the session for all students.')) {
+                fetch(`/end_class/${currentClassId}`, { method: 'POST' })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.status === 'success') {
+                            alert('Class ended successfully. Slides have been exported to PDF.');
+                        } else {
+                            alert('Error ending class: ' + data.message);
+                        }
+                    })
+                    .catch(error => console.error('Error:', error));
+            }
+        });
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.9.359/pdf.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <title>Client Canvas View</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+            background-color: #ffffff;
+        }
+
+        .main-container {
+            display: flex;
+            flex-direction: row;
+            flex: 1;
+            min-width: 0;
+            background-color: #f3f3f3;
+        }
+
+        .canvas-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            position: relative;
+            justify-content: center;
+            align-items: center;
+            background-color: white;
+            
+        }
+
+        canvas {
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+
+        .slide-info {
+            display:none;
+            padding: 10px;
+            background-color: #e0e0e0;
+            text-align: center;
+            width: 100%;
+        }
+
+        .comment-section {
+            width: 300px;
+            background-color: #f9f9f9;
+            border-left: 1px solid #ccc;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .comments {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding: 10px;
+            display: flex;
+            flex-direction: column-reverse;
+        }
+
+        .comment {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        /* Scrollbar styles */
+        .comments::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .comments::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        .comments::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 4px;
+        }
+
+        .comments::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+
+        .comment-form {
+            padding: 10px;
+            border-top: 1px solid #ccc;
+            background-color: #f9f9f9;
+            display: flex;
+            align-items: center;
+        }
+
+        .comment-form textarea {
+            flex-grow: 1;
+            margin-right: 10px;
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: none;
+            height: 34px;
+            overflow-y: auto;
+        }
+
+        .comment-form button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 34px;
+            height: 34px;
+            font-size: 18px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .comment-form button:hover {
+            background-color: #0056b3;
+        }
+        .educator-video-section {
+            background-color: #555;
+            height: 200px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        #streamedVideo {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            padding: 10px;
+            background-color: #f0f0f0;
+        }
+
+        #muteButton {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+
+        #muteButton:hover {
+            background-color: #0056b3;
+        }
+       
+        .poll-popup {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-60%);
+            background-color: rgb(160, 160, 160);
+            padding: 20px;
+            border: 1px solid black;
+            border-radius: 10px;
+            color: #ccc;
+            z-index: 1000;
+            border: 1px solid black;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .poll-popup button {
+            margin: 5px;
+            padding: 10px;
+            background-color: #696969;
+            border: ipx solid black;
+            color: white;
+            border-radius: 15px;
+            cursor: pointer;
+        }
+        .poll-popup button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        .result-popup {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 20px;
+            border: 1px solid black;
+            border-radius: 10px;
+            z-index: 1001;
+            font-weight: bold;
+            color: white;
+        }
+        #timerDisplay {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 16px;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+    <script>
+        const currentClassId = {{ class_id|tojson|safe }};
+    </script>
+
+    <div class="main-container">
+        <div class="canvas-container">
+            <canvas id="mainCanvas"></canvas>
+            <div id="timerDisplay"></div>
+            <button id="unMuteVdo">Unmute Video</button>
+            <div class="slide-info">
+                <span id="slideCounter">Slide 1 of 1</span>
+            </div>
+        </div>
+        <div class="comment-section">
+            <div class="educator-video-section">
+                <video id="streamedVideo" autoplay playsinline muted></video>
+            </div>
+            <div id="pinnedCommentContainer" class="pinned-comment-container"></div>
+            <div id="comments" class="comments"></div>
+            <div class="comment-form">
+                <textarea id="commentInput" placeholder="Type your comment here" rows="1"></textarea>
+                <button id="sendComment">&gt;</button>
+            </div>
+        </div>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        const socket = io();
+        const streamedVideo = document.getElementById('streamedVideo');
+        const classId = {{ class_id }};
+        let peerConnection;
+
+        let hasAnswered = false;
+
+    
+        socket.emit('join', {class_id: classId});
+    
+        function setupPeerConnection() {
+            console.log('Setting up peer connection');
+            if (peerConnection) {
+                peerConnection.close();
+            }
+            peerConnection = new RTCPeerConnection({
+                iceServers: [
+                    { urls: 'stun:stun.l.google.com:19302' }
+                ]
+            });
+    
+            peerConnection.ontrack = (event) => {
+                console.log('Received track:', event.track.kind);
+                if (!streamedVideo.srcObject) {
+                    streamedVideo.srcObject = new MediaStream();
+                }
+                streamedVideo.srcObject.addTrack(event.track);
+                
+                // Attempt to play the video immediately
+                playVideo();
+            };
+    
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    console.log('Sending ICE candidate');
+                    socket.emit('ice_candidate', { candidate: event.candidate, class_id: classId });
+                }
+            };
+    
+            peerConnection.oniceconnectionstatechange = () => {
+                console.log('ICE connection state:', peerConnection.iceConnectionState);
+            };
+        }
+    
+        function startStream() {
+            console.log('Starting stream');
+            setupPeerConnection();
+            socket.emit('request_offer', { class_id: classId });
+        }
+    
+        function playVideo() {
+            console.log('Attempting to play video');
+            const playPromise = streamedVideo.play();
+            if (playPromise !== undefined) {
+                playPromise.then(() => {
+                    console.log('Video playback started successfully');
+                    // Keep the video muted for now
+                }).catch(error => {
+                    console.error('Error playing video:', error);
+                });
+            }
+        }
+    
+        document.addEventListener('DOMContentLoaded', startStream);
+    
+        socket.on('offer', async (data) => {
+            console.log('Received offer');
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            console.log('Sending answer');
+            socket.emit('answer', { answer: answer, class_id: classId });
+        });
+    
+        socket.on('ice_candidate', async (data) => {
+            console.log('Received ICE candidate');
+            try {
+                await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+            } catch (e) {
+                console.error('Error adding received ICE candidate', e);
+            }
+        });
+
+ 
+        streamedVideo.onloadedmetadata = () => {
+            console.log('Video metadata loaded');
+        };
+    
+        streamedVideo.oncanplay = () => {
+            console.log('Video can play');
+            playVideo();
+        };
+    
+        streamedVideo.onplay = () => {
+            console.log('Video started playing');
+        };
+    
+        streamedVideo.onplaying = () => {
+            console.log('Video is playing');
+        };
+    
+        streamedVideo.onwaiting = () => {
+            console.log('Video is waiting for more data');
+        };
+    
+        streamedVideo.onerror = (e) => {
+            console.error('Video error:', e);
+        };
+
+
+        // Add a click event listener to the document to unmute the video
+        document.addEventListener('click', () => {
+            if (streamedVideo.muted) {
+                console.log('Unmuting video after user interaction');
+                streamedVideo.muted = false;
+            }
+        });
+
+        document.getElementById('unMuteVdo').addEventListener('click', () => {
+    if (streamedVideo.muted) {
+        console.log('Unmuting video and hiding button');
+        streamedVideo.muted = false;
+
+        // Hide the button after unmuting
+        document.getElementById('unMuteVdo').style.display = 'none';
+    }
+});
+        socket.on('connect', () => {
+            console.log('Connected to server');
+            socket.emit('join', {class_id: currentClassId});
+        });
+
+        socket.on('poll_file_created', (data) => {
+           
+            checkForActivePoll();
+        });
+
+        function checkForActivePoll() {
+            fetch(`/get_poll/${currentClassId}`)
+                .then(response => response.json())
+                .then(pollData => {
+                    if (pollData.error) {
+                       
+                        return;
+                    }
+                    const now = new Date();
+                    const startTime = new Date(pollData.startTime);
+                    const endTime = new Date(pollData.endTime);
+
+                    if (now >= startTime && now < endTime) {
+                        const remainingTime = Math.floor((endTime - now) / 1000);
+                        showPollForStudents(pollData, remainingTime);
+                    } else if (now < startTime) {
+                        const delay = startTime - now;
+                        setTimeout(() => checkForActivePoll(), delay);
+                    }
+                })
+                .catch(error => console.error('Error fetching poll:', error));
+        }
+
+        function showPollForStudents(pollData, duration) {
+            
+            const canvas = document.getElementById('mainCanvas');
+            const pollPopup = document.createElement('div');
+            pollPopup.className = 'poll-popup';
+
+            // Position the popup below the canvas
+            const canvasRect = canvas.getBoundingClientRect();
+            pollPopup.style.top = `${canvasRect.bottom - 60}px`; // 10px gap below canvas
+
+            const question = document.createElement('h3');
+            question.textContent = pollData.question;
+            pollPopup.appendChild(question);
+
+            pollData.options.forEach(option => {
+                const button = document.createElement('button');
+                button.textContent = option;
+                button.addEventListener('click', () => submitAnswer(option, pollData.correctAnswer, pollData.pollId, pollPopup));
+                pollPopup.appendChild(button);
+            });
+
+            const timer = document.createElement('div');
+            timer.textContent = `Time remaining: ${duration}s`;
+            pollPopup.appendChild(timer);
+
+            canvas.parentNode.insertBefore(pollPopup, canvas.nextSibling);
+
+            const countdown = setInterval(() => {
+                duration--;
+                timer.textContent = `Time remaining: ${duration}s`;
+                if (duration <= 0) {
+                    clearInterval(countdown);
+                    pollPopup.remove();
+                    hasAnswered = false;  // Reset for next poll
+                }
+            }, 1000);
+        }
+
+        function submitAnswer(answer, correctAnswer, pollId, pollPopup) {
+            if (hasAnswered) {
+                console.log('You have already answered this poll');
+                return;
+            }
+
+            socket.emit('submit_answer', {
+                pollId: pollId,
+                answer: answer,
+                correctAnswer: correctAnswer,
+                classId: currentClassId
+            });
+
+            hasAnswered = true;
+
+            // Disable all buttons
+            const buttons = pollPopup.querySelectorAll('button');
+            buttons.forEach(button => button.disabled = true);
+
+            const resultPopup = document.createElement('div');
+            resultPopup.className = 'result-popup';
+
+            if (answer === correctAnswer) {
+                resultPopup.style.backgroundColor = 'green';
+                resultPopup.textContent = 'Correct!';
+            } else {
+                resultPopup.style.backgroundColor = 'red';
+                resultPopup.textContent = 'Incorrect!';
+            }
+
+            document.body.appendChild(resultPopup);
+
+            setTimeout(() => {
+                resultPopup.remove();
+            }, 2000);
+        }
+
+        // Check for active poll every 5 seconds
+        setInterval(checkForActivePoll, 5000);
+   
+
+        const canvas = document.getElementById('mainCanvas');
+        const ctx = canvas.getContext('2d');
+        const slideCounter = document.getElementById('slideCounter');
+        let slides = [];
+        let currentSlideIndex = 0;
+        const ASPECT_RATIO = 13 / 6;
+
+        function resizeCanvas() {
+            const container = canvas.parentElement;
+            const containerWidth = container.clientWidth;
+            const containerHeight = container.clientHeight;
+            
+            let canvasWidth, canvasHeight;
+            
+            if (containerWidth / containerHeight > ASPECT_RATIO) {
+                // Container is wider than the aspect ratio
+                canvasHeight = containerHeight;
+                canvasWidth = canvasHeight * ASPECT_RATIO;
+            } else {
+                // Container is taller than the aspect ratio
+                canvasWidth = containerWidth;
+                canvasHeight = canvasWidth / ASPECT_RATIO;
+            }
+            
+            canvas.style.width = `${canvasWidth}px`;
+            canvas.style.height = `${canvasHeight}px`;
+            
+            // Set the canvas resolution to match its display size
+            const scale = window.devicePixelRatio;
+            canvas.width = Math.floor(canvasWidth * scale);
+            canvas.height = Math.floor(canvasHeight * scale);
+            ctx.scale(scale, scale);
+            
+            redrawCurrentSlide();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        function updateSlideCounter() {
+            slideCounter.textContent = `Slide ${currentSlideIndex + 1} of ${slides.length}`;
+        }
+
+        function redrawCurrentSlide() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (currentSlideIndex < slides.length) {
+                const currentSlide = slides[currentSlideIndex];
+                if (currentSlide.type === 'canvas' || currentSlide.type === 'image') {
+                    const img = new Image();
+                    img.onload = () => {
+                        ctx.drawImage(img, 0, 0, canvas.width / window.devicePixelRatio, canvas.height / window.devicePixelRatio);
+                    };
+                    img.src = currentSlide.data;
+                }
+            }
+            updateSlideCounter();
+        }
+
+        function fetchCanvasData() {
+            fetch(`/get_canvas_data/${currentClassId}`)
+                .then(response => response.json())
+                .then(data => {
+                    slides = data.slides;
+                    currentSlideIndex = data.currentSlideIndex;
+                    redrawCurrentSlide();
+                });
+        }
+
+        // Fetch the canvas data periodically
+        const canvasUpdateInterval = setInterval(fetchCanvasData, 1000);
+
+        // Comment section functionality
+        const commentsContainer = document.getElementById('comments');
+        const commentInput = document.getElementById('commentInput');
+        const sendComment = document.getElementById('sendComment');
+
+        function addComment(comment) {
+            const commentElement = document.createElement('div');
+            commentElement.className = 'comment';
+            commentElement.innerHTML = `
+                <strong>${comment.username}</strong><br>
+                ${comment.comment}<br>
+                <small>${comment.created_at}</small>
+            `;
+            commentsContainer.appendChild(commentElement);
+        }
+
+        function sendCommentIfNotEmpty() {
+            const comment = commentInput.value.trim();
+            if (comment) {
+                sendCommentToServer(comment);
+            }
+        }
+
+        commentInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendCommentIfNotEmpty();
+            }
+        });
+
+        sendComment.addEventListener('click', sendCommentIfNotEmpty);
+
+        async function sendCommentToServer(comment) {
+            try {
+                const response = await fetch('/add_comment', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ comment: comment, class_id: currentClassId })
+                });
+                if (response.ok) {
+                    commentInput.value = '';
+                    await fetchComments();
+                } else {
+                    console.error('Failed to send comment');
+                }
+            } catch (error) {
+                console.error('Error sending comment:', error);
+            }
+        }
+
+async function fetchComments() {
+    try {
+        const response = await fetch(`/fetch_comments/${currentClassId}`);
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Fetched comments data:', data);
+            
+            if (data.comments && Array.isArray(data.comments)) {
+                commentsContainer.innerHTML = '';
+                data.comments.forEach(addComment);
+                
+                // Handle pinned comment if needed
+                if (data.pinnedComment) {
+                    // Add logic to display pinned comment
+                    console.log('Pinned comment:', data.pinnedComment);
+                }
+            } else {
+                console.error('Comments data is not in the expected format:', data);
+            }
+        } else {
+            console.error('Failed to fetch comments:', response.status, response.statusText);
+        }
+    } catch (error) {
+        console.error('Error fetching comments:', error);
+    }
+}
+
+        // Fetch comments periodically
+        setInterval(fetchComments, 2000);
+
+        // Initial setup
+        fetchCanvasData();
+        fetchComments();
+
+        function checkClassStatus() {
+            fetch(`/check_class_status/${currentClassId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'ended') {
+                        alert('The class has ended. Thank you for attending!');
+                        // Remove or hide the canvas
+                        document.querySelector('.canvas-container').style.display = 'none';
+                        // Show a message
+                        const message = document.createElement('div');
+                        message.textContent = 'This class has ended.';
+                        message.style.textAlign = 'center';
+                        message.style.fontSize = '24px';
+                        message.style.marginTop = '50px';
+                        document.querySelector('.main-container').appendChild(message);
+                        // Stop checking for updates
+                        clearInterval(statusCheckInterval);
+                        clearInterval(canvasUpdateInterval);
+                    }
+                })
+                .catch(error => console.error('Error checking class status:', error));
+        }
+
+        const statusCheckInterval = setInterval(checkClassStatus, 10000); // Check every 10 seconds
+    </script>
+</body>
+</html>
