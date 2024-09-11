@@ -29,8 +29,8 @@ Mohd Hamzah
 
 1. Clone the repository:
    ```
-   git clone https://github.com/mdhamzah44/RAAH-Academy.git
-   cd RAAH-Academy
+   git clone https://github.com/mohdhamzah/raah-academy.git
+   cd raah-academy
    ```
 
 2. Set up a virtual environment:
@@ -66,7 +66,7 @@ Contributions to RAAH Academy are welcome! Please feel free to submit a Pull Req
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## Acknowledgements
 
