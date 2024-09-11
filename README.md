@@ -29,7 +29,7 @@ Mohd Hamzah
 
 1. Clone the repository:
    ```
-   git clone https://github.com/mohdhamzah/raah-academy.git
+   git clone [https://github.com/mohdhamzah/raah-academy.git](https://github.com/mdhamzah44/RAAH-Academy.git)
    cd raah-academy
    ```
 
