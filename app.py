@@ -21,6 +21,7 @@ mysql = MySQL(app)
 
 # Secret key for session
 app.secret_key = 'your_secure_random_string_here'
+user_responses = {}
 
 # Directory for storing canvas data
 DATA_DIR = 'data'
