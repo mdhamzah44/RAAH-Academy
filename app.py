@@ -422,15 +422,6 @@ def handle_start_poll(data):
     print(f"Created poll file: {filename}")
     socketio.emit('poll_file_created', {'filename': filename}, room=class_id)
 
-    # Clear previous responses for this poll
-    user_responses[data['pollId']] = {}
-
-    socketio.scheduler.add_job(
-        func=send_poll_results,
-        trigger='date',
-        run_date=end_time,
-        args=[data['pollId'], class_id]
-    )
 
 @app.route('/get_poll/<int:class_id>')
 def get_poll(class_id):
