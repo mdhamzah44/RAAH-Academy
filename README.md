@@ -68,7 +68,7 @@ Contributions to RAAH Academy are welcome! Please feel free to submit a Pull Req
 
 ## License
 
-This project is licensed under the MIT License - see the [License](#license) file for details.
+This project is licensed under the MIT License - see the [../LICENCE](#license) file for details.
 
 ## Acknowledgements
 
